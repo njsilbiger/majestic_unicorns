@@ -35,7 +35,7 @@ vignettes/*.pdf
 *.utf8.md
 *.knit.md
 
-# Data files
+# data files
 /data
 
 
