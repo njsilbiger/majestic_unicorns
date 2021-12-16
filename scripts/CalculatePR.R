@@ -53,8 +53,8 @@ Sample.Info <-left_join(RespoMeta, WhelkMeta)
 ##### Make sure times are consistent ####
 
 # make start and stop times real times, so that we can join the data frames
-Sample.Info$start.time <- as.POSIXct(Sample.Info$start.time,format="%H:%M:%S", tz = "") #convert time from character to time
-Sample.Info$stop.time <- as.POSIXct(Sample.Info$stop.time,format="%H:%M:%S", tz = "") #convert time from character to time
+Sample.Info$start.time <- as.POSIXct(Sample.Info$start.time,format="%H:%M", tz = "") #convert time from character to time
+Sample.Info$stop.time <- as.POSIXct(Sample.Info$stop.time,format="%H:%M", tz = "") #convert time from character to time
 
 #view(Sample.Info)
 ## There are some extra files from repeats so I added this line to only select the ones in the actual metadata sheet
