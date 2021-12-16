@@ -181,7 +181,7 @@ write_csv(Respo.R_Normalized , here("data","RespoFiles","Respo.RNormalized.csv")
 
 # quick plot
 Respo.R_Normalized %>%
-  ggplot(aes(x = Temp.C, y = -mmol.gram.hr, color = Species))+
+  ggplot(aes(x = Temp.C, y = mmol.gram.hr, color = Species))+
   geom_point()+
   geom_line()+
   facet_wrap(~SampleID)+
