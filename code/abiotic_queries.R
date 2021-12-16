@@ -38,7 +38,12 @@ pier_data <- pier_data %>%
   # remove columnns with all NAs
   remove_empty(which = c('cols')) %>%
   # make all col names snake case
-  clean_names()
+  clean_names() %>%
+  # rename time column
+  rename(dtime = time,
+         sio_air_temp = air_temperature,
+         sio_sst = sea_surface_temperature) %>%
+  select(dtime, sio_sst, sio_air_temp)
   
 
 # write csv
@@ -60,15 +65,30 @@ tide_data <- tide_data %>%
   clean_names() %>%
   select(-preliminary_ft) %>%
   # change time zone from gmt to pst to match temp data
-  mutate(datetime = with_tz(force_tz(as_datetime(paste(date, time_gmt)), 
+  mutate(dtime = with_tz(force_tz(as_datetime(paste(date, time_gmt)), 
                              tzone = 'UTC'), tzone = 'US/Pacific')) %>%
-  select(datetime, predicted_ft, verified_ft) %>%
+  select(dtime, predicted_ft, verified_ft) %>%
   # convert from ft to m in tide height
-  mutate(predicted_m = predicted_ft/3.2808399,
-         verified_m = verified_ft/3.2808399) %>%
-  select(-predicted_ft, -verified_ft)
+  mutate(tide_predict_m = predicted_ft/3.2808399,
+         tide_verified_m = verified_ft/3.2808399) %>%
+  select(-predicted_ft, -verified_ft) 
 
 write_csv(tide_data, './data/abiotic/sd_bay_tides_assembled.csv')
 
 ##### CABR Zone 1 Temp Logger (air + water temp) #####
+# TidbiT deployed in Zone 1 at CABR since July
+# Data are in PST (GMT -8)
 
+tidbit <- read_csv('data/abiotic/cabr_tidbit/CABR_Zone1_TidbiT_June20_Dec21.csv', 
+         skip = 2)
+
+tidbit <- tidbit %>%
+  clean_names() %>%
+  remove_empty(which = c('cols')) %>%
+  rename(dtime = date_time_gmt_08_00,
+         tidbit_temp_c = temp_c)
+
+write_csv(tidbit, './data/abiotic/cabr_z1_tidbit.csv')
+
+# I put the csv's that are written in this script in the google drive folder
+  
