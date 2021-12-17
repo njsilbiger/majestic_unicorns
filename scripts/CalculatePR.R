@@ -187,6 +187,6 @@ Respo.R_Normalized %>%
   ggplot(aes(x = Temp.C, y = -mmol.gram.hr, color = Species))+
   geom_point()+
   geom_line()+
-  facet_wrap(~SampleID)+
+  facet_wrap(~SampleID, scales = "free")+
   theme_bw()
   
