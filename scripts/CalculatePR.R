@@ -32,7 +32,7 @@ library("patchwork")
 
 
 #set the path to all of the raw oxygen datasheets
-path.p<-here("data","RespoFiles","RawO2", "Day1") #the location of all your respirometry files
+path.p<-here("data","RespoFiles","RawO2", "Day2") #the location of all your respirometry files
 
 # bring in all of the individual files
 file.names<-basename(list.files(path = path.p, pattern = "csv$", recursive = TRUE)) #list all csv file names in the folder and subfolders
@@ -187,6 +187,6 @@ Respo.R_Normalized %>%
   ggplot(aes(x = Temp.C, y = -mmol.gram.hr, color = Species))+
   geom_point()+
   geom_line()+
-  facet_wrap(~SampleID, scales = "free")+
+  facet_wrap(~SampleID)+
   theme_bw()
   
