@@ -15,9 +15,6 @@ library(tidyverse) # life
 
 ##### themes + presets #####
 
-# not in operator
-`%notin%` <- Negate(`%in%`)
-
 # theme
 light_theme <- theme_bw() + theme(text = element_text(size = 12),
                                     # add more space between panels
@@ -118,7 +115,39 @@ sst_plot_fn <- function(dataset) {
          theme(legend.position = 'none'),
          width = 7, height = 5)
   
+##### look at air temp and water temp distribution #####
+  
+sio2 <- sio %>%
+    # make columns for each tide ht of whether the area is in the air/water
+    mutate(year = year(dtime),
+           `1` = if_else(tide_predict_m >= 1, 'water', 'air'),
+           `1.25` = if_else(tide_predict_m >= 1.25, 'water', 'air'),
+           `1.5` = if_else(tide_predict_m >= 1.5, 'water', 'air'),
+           `1.75` = if_else(tide_predict_m >= 1.75, 'water', 'air'),
+           `2` = if_else(tide_predict_m >= 2, 'water', 'air')) %>%
+    # get 2016 onwards (last 5 yrs)
+    filter(year > 2015) %>%
+    # pivot longer
+    pivot_longer(cols = c(`1`:`2`), 
+                 names_to = 'tide_ht', values_to = 'air_water') %>%
+    mutate(temp = if_else(air_water == 'air', sio_air_temp, sio_sst))
+    
 
+# violin plots w/ box overlay for each year, faceted by air and water
 
+ggplot(data = sio2,
+       mapping = aes(x = year, y = temp, group = year, fill = year)) +
+  geom_violin() + 
+  scale_fill_viridis() +
+  xlab('Year') + 
+  ylab('Temperature (°C)') + 
+  ggtitle('SIO Pier Station Air & SST Temps') + 
+  facet_grid(tide_ht ~ air_water) + 
+  dark_theme + 
+  theme(legend.position = 'none')
+
+ggsave(filename = './figures/sio_air_water.png',
+       width = 5, height = 7)
+       
 
               
