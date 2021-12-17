@@ -190,3 +190,27 @@ Respo.R_Normalized %>%
   facet_wrap(~SampleID, scales = "free")+
   theme_bw()
   
+
+blank.rate<-Respo.R %>%
+  group_by(BLANK) %>% # also add block here if one blank per block
+  # group_by(BLANK)%>% # also add block here if one blank per block
+  summarise(umol.sec = mean(umol.sec, na.rm=TRUE)) %>%
+  filter(BLANK ==1)%>% # only keep the actual blanks
+  select(blank.rate = umol.sec) # only keep what we need and rename the blank rate column
+Respo.R_Normalized2<-Respo.R %>% # join with the respo data %>%
+  mutate(blank.rate = blank.rate$blank.rate,
+         umol.sec.corr = umol.sec - blank.rate, # subtract the blank rates from the raw rates
+         mmol.gram.hr = 0.001*(umol.sec.corr*3600)/Weight,
+         mmol.gram.hr_uncorr = 0.001*(umol.sec*3600)/Weight)  %>% # convert to mmol g hr-1
+  filter(is.na(BLANK)) %>% # remove all the blank data
+  select(Date, SampleID, Species, Weight,TotalBiomass,volume, mmol.gram.hr, chamber.channel,Temp.C, Temp.Block, mmol.gram.hr_uncorr) %>%  #keep only what we need
+  ungroup()
+
+#View(Respo.R_Normalized)
+Respo.R_Normalized2 %>%
+  filter(Temp.Block != 24)%>%
+  ggplot(aes(x = Temp.C, y = -mmol.gram.hr, color = Species))+
+  geom_point()+
+  geom_line()+
+  facet_wrap(~SampleID, scales = "free")+
+  theme_bw()
