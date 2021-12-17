@@ -165,14 +165,16 @@ Respo.R<-Respo.R %>%
 
 Respo.R_Normalized <- Respo.R %>%
   group_by(block, BLANK)%>% # also add block here if one blank per block
+ # group_by(BLANK)%>% # also add block here if one blank per block
   summarise(umol.sec = mean(umol.sec, na.rm=TRUE)) %>%
   filter(BLANK ==1)%>% # only keep the actual blanks
-  select(block, blank.rate = umol.sec) %>% # only keep what we need and rename the blank rate column
+  select(blank.rate = umol.sec) %>% # only keep what we need and rename the blank rate column
   right_join(Respo.R) %>% # join with the respo data %>%
   mutate(umol.sec.corr = umol.sec - blank.rate, # subtract the blank rates from the raw rates
-         mmol.gram.hr = 0.001*(umol.sec.corr*3600)/Weight)  %>% # convert to mmol g hr-1
+         mmol.gram.hr = 0.001*(umol.sec.corr*3600)/Weight,
+         mmol.gram.hr_uncorr = 0.001*(umol.sec*3600)/Weight)  %>% # convert to mmol g hr-1
   filter(is.na(BLANK)) %>% # remove all the blank data
-  select(Date, SampleID, Species, Weight,TotalBiomass,volume, mmol.gram.hr, chamber.channel,Temp.C, Temp.Block) %>%  #keep only what we need
+  select(Date, SampleID, Species, Weight,TotalBiomass,volume, mmol.gram.hr, chamber.channel,Temp.C, Temp.Block, mmol.gram.hr_uncorr) %>%  #keep only what we need
   ungroup()
   
 #View(Respo.R_Normalized)
@@ -182,9 +184,9 @@ write_csv(Respo.R_Normalized , here("data","RespoFiles","Respo.RNormalized.csv")
 # quick plot
 Respo.R_Normalized %>%
   filter(Temp.Block != 24)%>%
-  ggplot(aes(x = Temp.C, y = mmol.gram.hr, color = Species))+
+  ggplot(aes(x = Temp.C, y = -mmol.gram.hr_uncorr, color = Species))+
   geom_point()+
   geom_line()+
-  facet_wrap(~SampleID)+
+  facet_wrap(~SampleID, scales = "free")+
   theme_bw()
   
