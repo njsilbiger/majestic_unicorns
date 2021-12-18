@@ -32,7 +32,7 @@ library("patchwork")
 
 
 #set the path to all of the raw oxygen datasheets
-path.p<-here("data","RespoFiles","RawO2", "Day2") #the location of all your respirometry files
+path.p<-here("data","RespoFiles","RawO2", "Day3") #the location of all your respirometry files
 
 # bring in all of the individual files
 file.names<-basename(list.files(path = path.p, pattern = "csv$", recursive = TRUE)) #list all csv file names in the folder and subfolders
