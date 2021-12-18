@@ -183,7 +183,7 @@ write_csv(Respo.R_Normalized , here("data","RespoFiles","Respo.RNormalized.csv")
 
 # quick plot
 Respo.R_Normalized %>%
-  filter(Temp.Block != 28)%>%
+#  filter(Temp.Block != 28)%>%
   ggplot(aes(x = Temp.C, y = -mmol.gram.hr, color = Species))+
   geom_point()+
   geom_line()+
@@ -209,7 +209,7 @@ Respo.R_Normalized2<-Respo.R %>% # join with the respo data %>%
 #View(Respo.R_Normalized)
 Respo.R_Normalized2 %>%
  # filter(Temp.Block != 24 & SampleID == "ML_9") %>%
-  filter(Temp.Block != 28)%>%
+ # filter(Temp.Block != 28)%>%
   ggplot(aes(x = Temp.C, y = -mmol.gram.hr, color = Species))+
   geom_point()+
   geom_line()+
