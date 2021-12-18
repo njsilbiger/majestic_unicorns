@@ -140,15 +140,15 @@ Date,SampleID,FileID,Temp.Block,block,chamber.channel,BLANK,start.time,stop.time
 12/17/2021,ML_8,ML_8_18C_O2.csv,18,B3,3,,10:34,11:01,
 12/17/2021,ML_9,ML_9_18C_O2.csv,18,B3,4,,10:34,11:01,
 12/17/2021,BLANK_18B,BLANK_18C_B_O2.csv,18,B3,10,1,10:34,11:01,
-12/17/2021,AS_5,AS_5_20C_O2.csv,20,B4,5,,11:43,12:07,
+12/17/2021,AS_5,AS_5_20C_O2.csv,20,B4,5,,11:43,12:07,"snail climbed onto probe at approx. 12:21, was adjusted"
 12/17/2021,AS_6,AS_6_20C_O2.csv,20,B4,6,,11:43,12:07,
 12/17/2021,AS_7,AS_7_20C_O2.csv,20,B4,7,,11:43,12:07,
 12/17/2021,AS_8,AS_8_20C_O2.csv,20,B4,8,,11:43,12:07,
 12/17/2021,AS_9,AS_9_20C_O2.csv,20,B4,9,,11:43,12:07,
 12/17/2021,ML_6,ML_6_20C_O2.csv,20,B4,1,,11:43,12:07,
-12/17/2021,ML_7,ML_7_20C_O2.csv,20,B4,2,,11:43,12:07,"snail climbed onto probe at approx. 12:14, was adjusted"
+12/17/2021,ML_7,ML_7_20C_O2.csv,20,B4,2,,11:43,12:07,"snail climbed onto probe at approx. 12:14 & 12:21, was adjusted"
 12/17/2021,ML_8,ML_8_20C_O2.csv,20,B4,3,,11:43,12:07,
-12/17/2021,ML_9,ML_9_20C_O2.csv,20,B4,4,,11:43,12:07,
+12/17/2021,ML_9,ML_9_20C_O2.csv,20,B4,4,,11:43,12:07,"snail climbed onto probe at approx. 12:21, was adjusted"
 12/17/2021,BLANK_20B,BLANK_20C_B_O2.csv,20,B4,10,1,11:43,12:07,
 12/17/2021,AS_5,AS_5_22C_O2.csv,22,B5,5,,13:03,13:29,
 12/17/2021,AS_6,AS_6_22C_O2.csv,22,B5,6,,13:03,13:29,
