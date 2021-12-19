@@ -184,7 +184,8 @@ write_csv(Respo.R_Normalized , here("data","RespoFiles","Respo.RNormalized.csv")
 # quick plot
 Respo.R_Normalized %>%
  # filter(Temp.Block != 28)%>%
-  ggplot(aes(x = Temp.C, y = -mmol.gram.hr, color = Species))+
+  mutate(mmol.gram.hr2 = ifelse(mmol.gram.hr>0,0,mmol.gram.hr))%>%
+  ggplot(aes(x = Temp.C, y = log(-mmol.gram.hr+0.1), color = Species))+
   geom_point()+
   geom_line()+
   facet_wrap(~SampleID, scales = "free")+
@@ -208,7 +209,8 @@ Respo.R_Normalized2<-Respo.R %>% # join with the respo data %>%
 
 #View(Respo.R_Normalized)
 Respo.R_Normalized2 %>%
- # filter(Temp.Block != 24 & SampleID == "ML_9") %>%
+  mutate(mmol.gram.hr2 = ifelse(mmol.gram.hr>0,0,mmol.gram.hr))%>%
+   # filter(Temp.Block != 24 & SampleID == "ML_9") %>%
  # filter(Temp.Block != 28)%>%
   ggplot(aes(x = Temp.C, y = -mmol.gram.hr, color = Species))+
   geom_point()+
