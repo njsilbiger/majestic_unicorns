@@ -32,7 +32,7 @@ library("patchwork")
 
 
 #set the path to all of the raw oxygen datasheets
-path.p<-here("data","RespoFiles","RawO2", "Day4") #the location of all your respirometry files
+path.p<-here("data","RespoFiles","RawO2") #the location of all your respirometry files
 
 # bring in all of the individual files
 file.names<-basename(list.files(path = path.p, pattern = "csv$", recursive = TRUE)) #list all csv file names in the folder and subfolders
@@ -43,18 +43,24 @@ file.names.full<-list.files(path = path.p, pattern = "csv$", recursive = TRUE)
 
 #Load your respiration data file, with all the times, water volumes(mL), algal biomass weight (dry weight) (g)
 RespoMeta <- read_csv(file = here("data","RespoFiles","RespoMetadata.csv"))
-WhelkMeta <- read_csv(file = here("data","RespoFiles","WhelkMetaData.csv"))
+WhelkMeta <- read_csv(file = here("data","RespoFiles","WhelkMetaData.csv")) %>%
+  left_join(read_csv(file = here("data","RespoFiles","WhelksAFDW_Final.csv"))) # join with the AFDW data
+
 
 # join the data together
-Sample.Info <-left_join(RespoMeta, WhelkMeta)
+Sample.Info <-left_join(RespoMeta, WhelkMeta) %>%
+  mutate(start.time = mdy_hms(paste(as.character(Date), as.character(start.time))),
+         stop.time = mdy_hms(paste(as.character(Date), as.character(stop.time))))
+
+# convert datetime in SampleInfo
 
 #View(Sample.Info)
 
 ##### Make sure times are consistent ####
 
 # make start and stop times real times, so that we can join the data frames
-Sample.Info$start.time <- as.POSIXct(Sample.Info$start.time,format="%H:%M", tz = "") #convert time from character to time
-Sample.Info$stop.time <- as.POSIXct(Sample.Info$stop.time,format="%H:%M", tz = "") #convert time from character to time
+# Sample.Info$start.time <- as.POSIXct(Sample.Info$start.time,format="%H:%M", tz = "") #convert time from character to time
+# Sample.Info$stop.time <- as.POSIXct(Sample.Info$stop.time,format="%H:%M", tz = "") #convert time from character to time
 
 #view(Sample.Info)
 ## There are some extra files from repeats so I added this line to only select the ones in the actual metadata sheet
@@ -74,11 +80,12 @@ colnames(Respo.R) <- c("FileID","Intercept", "umol.L.sec","Temp.C")
 
 
 ###forloop#####
-for (i in 1: length(filenames_final)) {
+for (i in 1: length(file.names.full)) {
   FRow<-which(Sample.Info$FileID==filenames_final[i]) #stringsplit this renames our file
-  Respo.Data1 <-read_csv(file.path(path.p, paste0(filenames_final[i])), skip = 1) %>%
-    select(Time,Value,Temp) %>% # keep only what we need
-    mutate(Time = as.POSIXct(Time, format="%H:%M:%S", tz = "")) %>% # covert time
+  Respo.Data1 <-read_csv(file.path(path.p, paste0(file.names.full[i])), skip = 1) %>%
+    mutate(Time = mdy_hms(paste(Date,Time))) %>% # covert time
+    dplyr::select(Time,Value,Temp) %>% # keep only what we need
+    
     drop_na() # drop NAs
   
   Respo.Data1 <- Respo.Data1 %>%
@@ -164,7 +171,8 @@ Respo.R<-Respo.R %>%
 #View(Respo.R)
 
 Respo.R_Normalized <- Respo.R %>%
-  group_by(block, BLANK)%>% # also add block here if one blank per block
+#  group_by(BLANK, Temp.Block)%>% # also add block here if one blank per block 
+  group_by(block, BLANK, Temp.Block)%>% # also add 
  # group_by(BLANK)%>% # also add block here if one blank per block
   summarise(umol.sec = mean(umol.sec, na.rm=TRUE)) %>%
   filter(BLANK ==1)%>% # only keep the actual blanks
