@@ -42,7 +42,9 @@ file.names.full<-list.files(path = path.p, pattern = "csv$", recursive = TRUE)
 
 
 #Load your respiration data file, with all the times, water volumes(mL), algal biomass weight (dry weight) (g)
-RespoMeta <- read_csv(file = here("data","RespoFiles","RespoMetadata.csv"))
+RespoMeta <- read_csv(file = here("data","RespoFiles","RespoMetadata.csv")) %>%
+  mutate(Notes_respo = Notes)%>%
+  select(!Notes)
 WhelkMeta <- read_csv(file = here("data","RespoFiles","WhelkMetaData.csv")) %>%
   left_join(read_csv(file = here("data","RespoFiles","WhelksAFDW_Final.csv"))) # join with the AFDW data
 
@@ -170,35 +172,75 @@ Respo.R<-Respo.R %>%
 
 #View(Respo.R)
 
+## Remove the "bad" data
+bad<-read_csv(here("data","RespoFiles", "respo_files_to_check.csv")) %>%
+  select(Bad) %>% # select only the bad file names
+  drop_na() %>%
+  mutate(FileID = paste0(Bad,"_O2.csv")) # make it the same as the filenames
+
 Respo.R_Normalized <- Respo.R %>%
+  filter(!FileID %in% bad$FileID)%>% # remove the bad files
 #  group_by(BLANK, Temp.Block)%>% # also add block here if one blank per block 
-  group_by(block, BLANK, Temp.Block)%>% # also add 
+  group_by(BLANK, Temp.Block)%>% # also add 
  # group_by(BLANK)%>% # also add block here if one blank per block
   summarise(umol.sec = mean(umol.sec, na.rm=TRUE)) %>%
   filter(BLANK ==1)%>% # only keep the actual blanks
-  select(blank.rate = umol.sec) %>% # only keep what we need and rename the blank rate column
+  select(blank.rate = umol.sec, Temp.Block) %>% # only keep what we need and rename the blank rate column
+  ungroup()%>%
+  select(!BLANK) %>%
   right_join(Respo.R) %>% # join with the respo data %>%
   mutate(umol.sec.corr = umol.sec - blank.rate, # subtract the blank rates from the raw rates
-         mmol.gram.hr = 0.001*(umol.sec.corr*3600)/Weight,
-         mmol.gram.hr_uncorr = 0.001*(umol.sec*3600)/Weight)  %>% # convert to mmol g hr-1
+         mmol.gram.hr = 0.001*(umol.sec.corr*3600)/AFDW_g,
+         mmol.gram.hr_uncorr = 0.001*(umol.sec*3600)/AFDW_g)  %>% # convert to mmol g hr-1
   filter(is.na(BLANK)) %>% # remove all the blank data
-  select(Date, SampleID, Species, Weight,TotalBiomass,volume, mmol.gram.hr, chamber.channel,Temp.C, Temp.Block, mmol.gram.hr_uncorr) %>%  #keep only what we need
+  select(Date, SampleID, Species, Weight,TotalBiomass = AFDW_g,volume, mmol.gram.hr, chamber.channel,Temp.C, Temp.Block, mmol.gram.hr_uncorr) %>%  #keep only what we need
   ungroup()
   
 #View(Respo.R_Normalized)
+## convert the rates to a positive number so it is not just O2 uptake but a respo rate
+
+Respo.R_Normalized <-Respo.R_Normalized %>%
+  mutate(mmol.gram.hr = -mmol.gram.hr,
+         mmol.gram.hr_uncorr = -mmol.gram.hr_uncorr)
 
 write_csv(Respo.R_Normalized , here("data","RespoFiles","Respo.RNormalized.csv"))  
 
+# Remove data after death and remove some of the bad ones.. everything after 28 degrees stopped respiring and microbe respiration took over. Two AS snails this happened after 25C and 6 snails have bad data
+Respo.R_Normalized_clean<-Respo.R_Normalized %>%
+  filter(!SampleID %in% c("AS_5", "AS_17", "AS_6", "AS_7", "ML_4", "ML_15")) %>% # the bad snails
+  filter(Temp.Block<30) %>% # kepp all the temps below 28 C %>%
+  filter(Temp.Block != 28 & SampleID != "AS_15",
+         Temp.Block != 28 & SampleID != "AS_16",
+         Temp.Block != 28 & SampleID != "ML_17",
+         Temp.Block != 28 & SampleID != "ML_18",
+         Temp.Block != 10 & SampleID != "AS_10",
+         Temp.Block != 16 & SampleID != "ML_12"
+         
+         
+  )
+
+write_csv(Respo.R_Normalized_clean , here("data","RespoFiles","Respo.RNormalized_clean.csv"))  
+
+
 # quick plot
-Respo.R_Normalized %>%
+Respo.R_Normalized_clean %>%
  # filter(Temp.Block != 28)%>%
   mutate(mmol.gram.hr2 = ifelse(mmol.gram.hr>0,0,mmol.gram.hr))%>%
-  ggplot(aes(x = Temp.C, y = log(-mmol.gram.hr+0.1), color = Species))+
+  ggplot(aes(x = Temp.C, y = log(mmol.gram.hr+0.1), color = Species))+
   geom_point()+
   geom_line()+
+  facet_wrap(~SampleID, scales = "free_y")+
+  theme_bw()
+  #xlim(13,28)
+  
+Respo.R_Normalized %>%
+  # filter(Temp.Block != 28)%>%
+  mutate(mmol.gram.hr2 = ifelse(mmol.gram.hr>0,0,mmol.gram.hr))%>%
+  ggplot(aes(x = Temp.C, y = log(mmol.gram.hr+0.1), color = Species))+
+  geom_point()+
+  geom_smooth()+
   facet_wrap(~SampleID, scales = "free")+
   theme_bw()
-  
 
 blank.rate<-Respo.R %>%
   group_by(BLANK) %>% # also add block here if one blank per block
@@ -209,10 +251,10 @@ blank.rate<-Respo.R %>%
 Respo.R_Normalized2<-Respo.R %>% # join with the respo data %>%
   mutate(blank.rate = blank.rate$blank.rate,
          umol.sec.corr = umol.sec - blank.rate, # subtract the blank rates from the raw rates
-         mmol.gram.hr = 0.001*(umol.sec.corr*3600)/Weight,
-         mmol.gram.hr_uncorr = 0.001*(umol.sec*3600)/Weight)  %>% # convert to mmol g hr-1
+         mmol.gram.hr = 0.001*(umol.sec.corr*3600)/AFDW_g,
+         mmol.gram.hr_uncorr = 0.001*(umol.sec*3600)/AFDW_g)  %>% # convert to mmol g hr-1
   filter(is.na(BLANK)) %>% # remove all the blank data
-  select(Date, SampleID, Species, Weight,TotalBiomass,volume, mmol.gram.hr, chamber.channel,Temp.C, Temp.Block, mmol.gram.hr_uncorr) %>%  #keep only what we need
+  select(Date, SampleID, Species, Weight,TotalBiomass = AFDW_g,volume, mmol.gram.hr, chamber.channel,Temp.C, Temp.Block, mmol.gram.hr_uncorr) %>%  #keep only what we need
   ungroup()
 
 #View(Respo.R_Normalized)
@@ -223,5 +265,5 @@ Respo.R_Normalized2 %>%
   ggplot(aes(x = Temp.C, y = -mmol.gram.hr, color = Species))+
   geom_point()+
   geom_line()+
-  facet_wrap(~SampleID)+
+  facet_wrap(~SampleID, scale = "free_y")+
   theme_bw()
