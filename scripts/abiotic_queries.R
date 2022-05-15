@@ -3,7 +3,7 @@
 # purpose: get abiotic data, tidy for use in data analysis
 # author: lp
 # created: 12/15/21
-# last edited: 12/16/21
+# last edited: 5/15/21
 ##################################################
 
 ##### packages #####
@@ -18,7 +18,7 @@ library(tidyverse) # always
 # https://www.ndbc.noaa.gov/station_page.php?station=ljac1
 
 # pull data 1990 - 2021
-years <- c(2005:2021)
+years <- c(2005:2022)
 
 for(i in 1:length(years)) {
 lj <- buoy(buoyid = 'LJAC1', dataset = 'stdmet', year = years[i])$data

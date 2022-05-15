@@ -1,37 +1,19 @@
 #################################################
-# title: look at presence/absence of A.S. and M.L. over time
+# title: presence/absence of A.S. and M.L. over time
 # author: lp
 # created: 12/19/21
-# last edited: 12/19/21
+# last edited: 5/15/21
 ##################################################
 
 ##### load packages #####
-library(gt)        # nice tables
-library(readxl)    # read excel files
 library(viridis)   # color palette
 library(lubridate) # deal w dates and times
-library(ggdark)    # dark field versions of ggplot2 themes
 library(tidyverse) # life
-
-dark_theme <- dark_theme_bw() + theme(text = element_text(size = 12),
-                                      # add more space between panels
-                                      panel.spacing = unit(1, 'lines'),
-                                      # no background to wrap panels
-                                      strip.background = element_blank(),
-                                      strip.text = element_text(size = 12, 
-                                                                hjust = 0),
-                                      # panel labels outside x axis labels
-                                      strip.placement = 'outside',
-                                      # adjust x axis labels
-                                      axis.text.y = element_text(size = 12),
-                                      axis.text.x = element_text(size = 12, 
-                                                                 angle = 45, 
-                                                                 hjust = 1))
 
 ##### load data #####
 
-point_contact <- read_xlsx('./data/survey/CABR_Coastal_Biodiversity_Survey.xlsx', sheet = 5)
-mobile_quad <- read_xlsx('./data/survey/CABR_Coastal_Biodiversity_Survey.xlsx', sheet = 6)
+point_contact <- read_csv('data/survey/CABR_CBS_Point_Contact.csv')
+mobile_quad <- read_csv('data/survey/CABR_CBS_Mobile_Quadrat.csv')
 survey_dates <- read_csv("data/survey/cbs_survey_dates.csv")
 
 sio_pier <- read_csv("data/abiotic/SIO_TEMP.csv", 
@@ -77,7 +59,7 @@ ggplot(data = mobile_quad,
   xlab('Year surveyed') + 
   ylab('Density (whelks/m²)') + 
   facet_wrap(~site, scales = 'free_x') +
-  dark_theme + 
+  theme_bw() +  
   theme(legend.position = 'bottom')
 
 ##### mean annual 12 mo prior to collection - avg of month of collection in yr vs density #####
