@@ -228,7 +228,7 @@ Respo.R_Normalized_clean %>%
   mutate(mmol.gram.hr2 = ifelse(mmol.gram.hr>0,0,mmol.gram.hr))%>%
   ggplot(aes(x = Temp.C, y = log(mmol.gram.hr+0.1), color = Species))+
   geom_point()+
-  geom_line()+
+  geom_smooth()+
   facet_wrap(~SampleID, scales = "free_y")+
   theme_bw()
   #xlim(13,28)
