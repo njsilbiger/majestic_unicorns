@@ -158,8 +158,8 @@ Respo.R <- read_csv(here("data","RespoFiles","Respo.R.csv"))
 Respo.R<-Respo.R %>%
   drop_na(FileID) %>% # drop NAs
   left_join(Sample.Info) %>% # Join the raw respo calcuations with the metadata
-  mutate(volume = ifelse(is.na(volume),650,volume))%>% # add 650 ml for volume of all blanks
-  mutate(umol.sec = umol.L.sec*volume) %>% #Account for chamber volume to convert from umol L-1 s-1 to umol s-1. This standardizes across water volumes (different because of coral size) and removes per Liter
+  mutate(volume = ifelse(is.na(volume),.650,volume/1000))%>% # add 650 ml for volume of all blanks
+  mutate(umol.sec = umol.L.sec*(volume/1000)) %>% #Account for chamber volume to convert from umol L-1 s-1 to umol s-1. This standardizes across water volumes (different because of coral size) and removes per Liter
   mutate_if(sapply(., is.character), as.factor) %>% #convert character columns to factors
   mutate(BLANK = as.factor(BLANK)) #make the blank column a factor
 
@@ -174,41 +174,43 @@ Respo.R<-Respo.R %>%
 
 ## Remove the "bad" data
 bad<-read_csv(here("data","RespoFiles", "respo_files_to_check.csv")) %>%
-  select(Bad) %>% # select only the bad file names
+  dplyr::select(Bad) %>% # select only the bad file names
   drop_na() %>%
   mutate(FileID = paste0(Bad,"_O2.csv")) # make it the same as the filenames
 
 Respo.R_Normalized <- Respo.R %>%
   filter(!FileID %in% bad$FileID)%>% # remove the bad files
 #  group_by(BLANK, Temp.Block)%>% # also add block here if one blank per block 
-  group_by(BLANK, Temp.Block)%>% # also add 
- # group_by(BLANK)%>% # also add block here if one blank per block
-  summarise(umol.sec = mean(umol.sec, na.rm=TRUE)) %>%
+  group_by(BLANK, Temp.Block, block)%>% # also add 
+#  group_by(BLANK)%>% # also add block here if one blank per block
+  summarise(umol.sec = mean(umol.sec, na.rm=TRUE), .groups = 'drop') %>%
   filter(BLANK ==1)%>% # only keep the actual blanks
-  select(blank.rate = umol.sec, Temp.Block) %>% # only keep what we need and rename the blank rate column
+  #dplyr::select(blank.rate = umol.sec) %>% # only keep what 
+    select(blank.rate = umol.sec, Temp.Block, block) %>% # only keep what we need and rename the blank rate column
   ungroup()%>%
-  select(!BLANK) %>%
+#  dplyr::select(!BLANK) %>%
+#  bind_cols(Respo.R) %>%
   right_join(Respo.R) %>% # join with the respo data %>%
   mutate(umol.sec.corr = umol.sec - blank.rate, # subtract the blank rates from the raw rates
-         mmol.gram.hr = 0.001*(umol.sec.corr*3600)/AFDW_g,
-         mmol.gram.hr_uncorr = 0.001*(umol.sec*3600)/AFDW_g)  %>% # convert to mmol g hr-1
+         umol.gram.hr = (umol.sec.corr*3600)/AFDW_g,
+         umol.gram.hr_uncorr = (umol.sec*3600)/AFDW_g)  %>% # convert to mmol g hr-1
   filter(is.na(BLANK)) %>% # remove all the blank data
-  select(Date, SampleID, Species, Weight,TotalBiomass = AFDW_g,volume, mmol.gram.hr, chamber.channel,Temp.C, Temp.Block, mmol.gram.hr_uncorr) %>%  #keep only what we need
+  dplyr::select(Date, SampleID, Species, Weight,TotalBiomass = AFDW_g,volume, umol.gram.hr, chamber.channel,Temp.C, Temp.Block, umol.gram.hr_uncorr) %>%  #keep only what we need
   ungroup()
   
 #View(Respo.R_Normalized)
 ## convert the rates to a positive number so it is not just O2 uptake but a respo rate
 
 Respo.R_Normalized <-Respo.R_Normalized %>%
-  mutate(mmol.gram.hr = -mmol.gram.hr,
-         mmol.gram.hr_uncorr = -mmol.gram.hr_uncorr)
+  mutate(umol.gram.hr = -umol.gram.hr,
+         umol.gram.hr_uncorr = -umol.gram.hr_uncorr)
 
 write_csv(Respo.R_Normalized , here("data","RespoFiles","Respo.RNormalized.csv"))  
 
 # Remove data after death and remove some of the bad ones.. everything after 28 degrees stopped respiring and microbe respiration took over. Two AS snails this happened after 25C and 6 snails have bad data
 Respo.R_Normalized_clean<-Respo.R_Normalized %>%
   filter(!SampleID %in% c("AS_5", "AS_17", "AS_6", "AS_7", "ML_4", "ML_15")) %>% # the bad snails
-  filter(Temp.Block<30) %>% # kepp all the temps below 28 C %>%
+ # filter(Temp.Block<30) %>% # kepp all the temps below 28 C %>%
   filter(Temp.Block != 28 & SampleID != "AS_15",
          Temp.Block != 28 & SampleID != "AS_16",
          Temp.Block != 28 & SampleID != "ML_17",
@@ -224,9 +226,10 @@ write_csv(Respo.R_Normalized_clean , here("data","RespoFiles","Respo.RNormalized
 
 # quick plot
 Respo.R_Normalized_clean %>%
+ # filter(Date != "12/16/2021") %>%
  # filter(Temp.Block != 28)%>%
-  mutate(mmol.gram.hr2 = ifelse(mmol.gram.hr>0,0,mmol.gram.hr))%>%
-  ggplot(aes(x = Temp.C, y = log(mmol.gram.hr+0.1), color = Species))+
+  mutate(umol.gram.hr2 = ifelse(umol.gram.hr>0,0,umol.gram.hr))%>%
+  ggplot(aes(x = Temp.C, y = umol.gram.hr, color = Species))+
   geom_point()+
   geom_smooth()+
   facet_wrap(~SampleID, scales = "free_y")+
@@ -234,36 +237,63 @@ Respo.R_Normalized_clean %>%
   #xlim(13,28)
   
 Respo.R_Normalized %>%
-  # filter(Temp.Block != 28)%>%
-  mutate(mmol.gram.hr2 = ifelse(mmol.gram.hr>0,0,mmol.gram.hr))%>%
-  ggplot(aes(x = Temp.C, y = log(mmol.gram.hr+0.1), color = Species))+
+    # filter(Temp.Block != 28)%>%
+  filter(umol.gram.hr>0) %>%
+        # SampleID != "AS_18",
+         #Date != "12/16/2021") %>%
+ # mutate(umol.gram.hr2 = ifelse(umol.gram.hr>0,0,umol.gram.hr))%>%
+  ggplot(aes(x = Temp.C, y = umol.gram.hr, color = Species))+
   geom_point()+
   geom_smooth()+
   facet_wrap(~SampleID, scales = "free")+
   theme_bw()
 
 blank.rate<-Respo.R %>%
-  group_by(BLANK) %>% # also add block here if one blank per block
+  group_by(BLANK, Temp.Block) %>% # also add block here if one blank per block
   # group_by(BLANK)%>% # also add block here if one blank per block
   summarise(umol.sec = mean(umol.sec, na.rm=TRUE)) %>%
   filter(BLANK ==1)%>% # only keep the actual blanks
-  select(blank.rate = umol.sec) # only keep what we need and rename the blank rate column
+  ungroup() %>%
+  select(blank.rate = umol.sec, Temp.Block)  # only keep what we need and rename the blank rate column
+
+Respo.R %>%
+  group_by(BLANK, Temp.Block) %>% # also add block here if one blank per block
+  # group_by(BLANK)%>% # also add block here if one blank per block
+  summarise(umol.sec = mean(umol.sec, na.rm=TRUE)) %>%
+  filter(BLANK ==1) %>%
+  ggplot(aes(x = Temp.Block, y = -umol.sec))+
+  geom_point()
+
 Respo.R_Normalized2<-Respo.R %>% # join with the respo data %>%
-  mutate(blank.rate = blank.rate$blank.rate,
+  left_join(blank.rate) %>%
+  mutate(#blank.rate = blank.rate$blank.rate,
          umol.sec.corr = umol.sec - blank.rate, # subtract the blank rates from the raw rates
-         mmol.gram.hr = 0.001*(umol.sec.corr*3600)/AFDW_g,
-         mmol.gram.hr_uncorr = 0.001*(umol.sec*3600)/AFDW_g)  %>% # convert to mmol g hr-1
+         umol.gram.hr = (umol.sec.corr*3600)/AFDW_g,
+         umol.gram.hr_uncorr = (umol.sec*3600)/AFDW_g)  %>% # convert to mmol g hr-1
   filter(is.na(BLANK)) %>% # remove all the blank data
-  select(Date, SampleID, Species, Weight,TotalBiomass = AFDW_g,volume, mmol.gram.hr, chamber.channel,Temp.C, Temp.Block, mmol.gram.hr_uncorr) %>%  #keep only what we need
+  select(Date, SampleID, Species, Weight,TotalBiomass = AFDW_g,volume, umol.gram.hr, chamber.channel,Temp.C, Temp.Block, umol.gram.hr_uncorr) %>%  #keep only what we need
   ungroup()
+
+Respo.R_Normalized2 %>%
+  filter(Temp.Block<= 32, Temp.Block != 28, SampleID != 'AS_18') %>%
+  ggplot(aes(x = Temp.Block, y = -umol.gram.hr, color = Species))+
+  geom_point()
+
+Respo.R_Normalized2 %>%
+  filter(Temp.Block<= 32, Temp.Block != 28, SampleID != 'AS_18') %>%
+  ggplot(aes(x = Temp.Block, y = -umol.gram.hr_uncorr, color = Species))+
+  geom_point()
 
 #View(Respo.R_Normalized)
 Respo.R_Normalized2 %>%
-  mutate(mmol.gram.hr2 = ifelse(mmol.gram.hr>0,0,mmol.gram.hr))%>%
+  filter(Temp.Block<= 32, Temp.Block != 28, SampleID != 'AS_18') %>%
+  mutate(umol.gram.hr2 = ifelse(umol.gram.hr>0,NA,umol.gram.hr))%>%
+  drop_na(umol.gram.hr2) %>%
    # filter(Temp.Block != 24 & SampleID == "ML_9") %>%
  # filter(Temp.Block != 28)%>%
-  ggplot(aes(x = Temp.C, y = -mmol.gram.hr, color = Species))+
+  ggplot(aes(x = Temp.C, y = -umol.gram.hr_uncorr, color = Species))+
   geom_point()+
-  geom_line()+
-  facet_wrap(~SampleID, scale = "free_y")+
+ # geom_line()+
+  geom_smooth()+
+  #facet_wrap(~SampleID, scale = "free_y")+
   theme_bw()

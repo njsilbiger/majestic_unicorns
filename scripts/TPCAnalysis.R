@@ -6,28 +6,186 @@ library(tidyverse)
 library(rTPC)
 library(nls.multstart)
 library(broom)
+library(boot)
+library(car)
 
 ## read in the data
 
-RespoData<-read_csv(here("data","RespoFiles","Respo.RNormalized_clean.csv"))
+# RespoData<-read_csv(here("data","RespoFiles","Respo.RNormalized_clean.csv"))
+ RespoData<-read_csv(here("data","RespoFiles","Respo.RNormalized.csv"))%>%
+   filter(SampleID != 'AS_18',
+          Temp.Block < 33,
+          Temp.Block != 28)
 
 ## analysis
 # all the tpc model names
 get_model_names()
 
+# get means and se for rates at each temperature
+RespoMeans<-RespoData  %>% # I think the weight is wrong
+  group_by(Species, Temp.Block) %>%
+  summarise(rate_mean = mean(umol.gram.hr_uncorr, na.rm = TRUE),
+            rate_se = rate_mean/sqrt(n()),
+            rate_sd = sd(umol.gram.hr_uncorr, na.rm = TRUE),
+            lower.ci = rate_mean - qt(1 - (0.05 / 2), n() - 1) * rate_se,
+            upper.ci = rate_mean + qt(1 - (0.05 / 2), n() - 1) * rate_se) %>% ungroup()
+
+
+# plot the means of the uncorrected data 
+RespoMeans %>%
+  ggplot(aes(x = Temp.Block, y = rate_mean, color = Species))+ geom_point(size = 3)+
+  geom_smooth()+
+  geom_point(data = RespoData, aes(x = Temp.Block, y = umol.gram.hr_uncorr, color = Species), alpha = 0.1)+
+  geom_errorbar(aes(ymin = lower.ci,
+                    ymax = upper.ci),width = 0.2)
+
+
+## Let's fit a weighted TPC (by SD) to account for variance within a temperature and then use bootstrapping to calculate error
+
+
+
+
+
+
 # We will start with "sharpeschoolhigh_1981"
 
-RespoData_clean <- RespoData %>%
-  select(ID = SampleID, Species, rate = mmol.gram.hr, temp = Temp.C) %>% # select just what we need
-  mutate(rate = ifelse(rate<0,0,rate), # make the - values 0
-    rate = log(rate+1))%>%
-  drop_na()
 
 # make it possible
+RespoMeans2<-RespoMeans %>%
+  select(Species, temp = Temp.Block, rate = rate_mean, sd = rate_sd)
 
 
+## Mexicanthina
+dfit<-nest(RespoMeans2 %>% filter(Species  == "Mexicanthina lugubris"), data = c(temp, rate ,sd)) %>%
+  mutate(sharpeschoolhigh = map(data, ~nls_multstart(rate~sharpeschoolhigh_1981(temp = temp, r_tref,e,eh,th, tref = 20),                                     data = .x,
+                                                     #        iter = c(4,4,4,4), 
+                                                     iter = 1,
+                                                     
+                                                     start_lower = get_start_vals(.x$temp, .x$rate, model_name = 'sharpeschoolhigh_1981') - .1,         start_upper = get_start_vals(.x$temp, .x$rate, model_name = 'sharpeschoolhigh_1981') + 1,
+                                                     lower = get_lower_lims(.x$temp, .x$rate, model_name = 'sharpeschoolhigh_1981')+2,
+                                                     upper = get_upper_lims(.x$temp, .x$rate, model_name = 'sharpeschoolhigh_1981'),
+                                                     supp_errors = 'Y',
+                                                     convergence_count = FALSE,
+# include weights here!
+modelweights = 1/sd)))
+
+dfit$sharpeschoolhigh
+
+# get predictions
+newdata <- tibble(temp = seq(min(RespoMeans2$temp), max(RespoMeans2$temp), length.out = 100))
+
+d_preds <- dfit %>%
+  mutate(., preds = map(sharpeschoolhigh, augment, newdata = newdata)) %>%
+  select(-sharpeschoolhigh) %>%
+  unnest(preds)
+
+## Acanthinucella
+dfit_Ac<-nest(RespoMeans2 %>% filter(Species  == "Acanthinucella spirata"), data = c(temp, rate ,sd)) %>%
+  mutate(sharpeschoolhigh = map(data, ~nls_multstart(rate~sharpeschoolhigh_1981(temp = temp, r_tref,e,eh,th, tref = 20),                                     data = .x,
+                                                     #        iter = c(4,4,4,4), 
+                                                     iter = 1,
+                                                     
+                                                     start_lower = get_start_vals(.x$temp, .x$rate, model_name = 'sharpeschoolhigh_1981') - .1,         start_upper = get_start_vals(.x$temp, .x$rate, model_name = 'sharpeschoolhigh_1981') + 1,
+                                                     lower = get_lower_lims(.x$temp, .x$rate, model_name = 'sharpeschoolhigh_1981')+2,
+                                                     upper = get_upper_lims(.x$temp, .x$rate, model_name = 'sharpeschoolhigh_1981'),
+                                                     supp_errors = 'Y',
+                                                     convergence_count = FALSE,
+                                                     # include weights here!
+                                                     modelweights = 1/sd)))
+
+# get predictions
+d_preds_Ac <- dfit_Ac %>%
+  mutate(., preds = map(sharpeschoolhigh, augment, newdata = newdata)) %>%
+  select(-sharpeschoolhigh) %>%
+  unnest(preds)
+
+# Make a plot
+# plot
+RespoMeans2_Mex<- 
+  RespoMeans2 %>% 
+filter(Species == 'Mexicanthina lugubris')
+
+RespoMeans2_Ac<- 
+  RespoMeans2 %>% 
+  filter(Species == 'Acanthinucella spirata')
+
+ggplot() +
+  geom_line(aes(temp, .fitted), d_preds) +
+  geom_linerange(aes(x = temp, ymin = rate - sd, ymax = rate + sd), RespoMeans2_Mex) +
+  geom_point(aes(temp, rate), RespoMeans2_Mex, size = 2, shape = 21, fill = 'green4') +
+  
+  geom_line(aes(temp, .fitted), d_preds_Ac, color = 'grey') +
+  geom_linerange(aes(x = temp, ymin = rate - sd, ymax = rate + sd), RespoMeans2_Ac) +
+  geom_point(aes(temp, rate), RespoMeans2_Ac, size = 2, shape = 21, fill = 'red4') +
+  
+  theme_bw(base_size = 12) +
+  theme(legend.position = 'none',
+        strip.text = element_text(hjust = 0),
+        strip.background = element_blank()) +
+  labs(x ='Temperature (ºC)',
+       y = 'Metabolic rate',
+       title = 'Respiration rates across temperatures') +
+  geom_hline(aes(yintercept = 0), linetype = 2) 
+  
+  #ylim(c(-0.25, 3.5))
+
+# refit model using nlsLM
+fit_nlsLM <- minpack.lm::nlsLM(rate~sharpeschoolhigh_1981(temp = temp, r_tref,e,eh,th, tref = 20),
+                               data = RespoMeans2_Mex,
+                               start = coef(dfit$sharpeschoolhigh[[1]]),
+                               lower = get_lower_lims(RespoMeans2_Mex$temp, RespoMeans2_Mex$rate, model_name = 'sharpeschoolhigh_1981'),
+                               upper = get_upper_lims(RespoMeans2_Mex$temp, RespoMeans2_Mex$rate, model_name = 'sharpeschoolhigh_1981'),
+                               weights = 1/sd)
+
+# perform case bootstrap
+boot1 <- Boot(fit_nlsLM, method = 'case')
+#> 
+
+# predict over new data
+boot1_preds <- boot1$t %>%
+  as.data.frame() %>%
+  drop_na() %>%
+  mutate(iter = 1:n()) %>%
+  group_by_all() %>%
+  do(data.frame(temp = seq(min(RespoMeans2_Mex$temp), max(RespoMeans2_Mex$temp), length.out = 100))) %>%
+  ungroup() %>%
+  mutate(pred = sharpeschoolhigh_1981(temp = temp, r_tref,e,eh,th, tref = 20))
+
+# calculate bootstrapped confidence intervals
+boot1_conf_preds <- group_by(boot1_preds, temp) %>%
+  summarise(conf_lower = quantile(pred, 0.025),
+            conf_upper = quantile(pred, 0.975),
+            .groups = 'drop')
+### plot bootsstrapped predictions
+ggplot() +
+  geom_line(aes(temp, .fitted), d_preds, col = 'black') +
+  geom_line(aes(temp, pred, group = iter), boot1_preds, col = 'black', alpha = 0.007) +
+  geom_linerange(aes(x = temp, ymin = rate - sd, ymax = rate + sd), RespoMeans2_Mex) +
+  geom_point(aes(temp, rate), RespoMeans2_Mex, size = 2, shape = 21, fill = 'green4') +
+  theme_bw(base_size = 10) +
+  theme(legend.position = 'none',
+        strip.text = element_text(hjust = 0),
+        strip.background = element_blank()) +
+  labs(x ='Temperature (ºC)',
+       y = 'Metabolic rate',
+       title = 'Respiration rates across temperatures') +
+  geom_hline(aes(yintercept = 0), linetype = 2) 
+
+## Calculate parameters
+param <- broom::tidy(fit_nlsLM) %>%
+  select(param = term, estimate)
+
+# CIs from case resampling
+ci3 <- confint(boot1) %>%
+  as.data.frame() %>%
+  rename(conf_lower = 1, conf_upper = 2) %>%
+  rownames_to_column(., var = 'param') %>%
+  mutate(method = 'case bootstrap')
+
+############# other
 Respofits<-RespoData_clean%>%
-  filter(!ID %in% c("AS_12","AS_13"))%>%
+#  filter(ID %in% c("ML_19","ML_20"))%>%
+  filter(!ID %in% c("AS_15","AS_16", "AS_7", "AS_8","AS_9", "ML_4","ML_9"))%>%
 #  filter(Species == "Acanthinucella spirata")%>%
   nest(data = c(temp, rate)) %>%
   mutate(sharpeschoolhigh = map(data, ~nls_multstart(rate~sharpeschoolhigh_1981(temp = temp, r_tref,e,eh,th, tref = 20),                                     data = .x,
@@ -68,7 +226,6 @@ d_params %>%
   ggplot(aes(x = Species, y = topt))+
   geom_boxplot()+
   geom_jitter(width = 0.2)
-
 
 
 # plot
