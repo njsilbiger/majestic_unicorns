@@ -13,9 +13,10 @@ library(car)
 
 # RespoData<-read_csv(here("data","RespoFiles","Respo.RNormalized_clean.csv"))
  RespoData<-read_csv(here("data","RespoFiles","Respo.RNormalized.csv"))%>%
-   filter(SampleID != 'AS_18',
-          Temp.Block < 33,
-          Temp.Block != 28)
+    filter(Temp.Block != 30 | Species != 'Acanthinucella spirata') 
+   # filter(SampleID != 'AS_18',
+   #        Temp.Block < 33,
+   #        Temp.Block != 28)
 
 ## analysis
 # all the tpc model names
@@ -24,9 +25,9 @@ get_model_names()
 # get means and se for rates at each temperature
 RespoMeans<-RespoData  %>% # I think the weight is wrong
   group_by(Species, Temp.Block) %>%
-  summarise(rate_mean = mean(umol.gram.hr_uncorr, na.rm = TRUE),
+  summarise(rate_mean = mean(umol.gram.hr, na.rm = TRUE),
             rate_se = rate_mean/sqrt(n()),
-            rate_sd = sd(umol.gram.hr_uncorr, na.rm = TRUE),
+            rate_sd = sd(umol.gram.hr, na.rm = TRUE),
             lower.ci = rate_mean - qt(1 - (0.05 / 2), n() - 1) * rate_se,
             upper.ci = rate_mean + qt(1 - (0.05 / 2), n() - 1) * rate_se) %>% ungroup()
 
@@ -35,7 +36,7 @@ RespoMeans<-RespoData  %>% # I think the weight is wrong
 RespoMeans %>%
   ggplot(aes(x = Temp.Block, y = rate_mean, color = Species))+ geom_point(size = 3)+
   geom_smooth()+
-  geom_point(data = RespoData, aes(x = Temp.Block, y = umol.gram.hr_uncorr, color = Species), alpha = 0.1)+
+  geom_point(data = RespoData, aes(x = Temp.Block, y = umol.gram.hr, color = Species), alpha = 0.1)+
   geom_errorbar(aes(ymin = lower.ci,
                     ymax = upper.ci),width = 0.2)
 
