@@ -22,6 +22,16 @@ library(car)
 # all the tpc model names
 get_model_names()
 
+## Inidividuals
+
+RespoData %>%
+  filter(Temp.Block<32)%>%
+  ggplot(aes(x = Temp.C, y = umol.gram.hr_uncorr, group = SampleID))+
+  geom_point()+
+  geom_smooth(se=FALSE)+
+  facet_wrap(~SampleID, scales = "free_y")
+
+
 # get means and se for rates at each temperature
 RespoMeans<-RespoData  %>% # I think the weight is wrong
   group_by(Species, Temp.Block) %>%
@@ -34,17 +44,16 @@ RespoMeans<-RespoData  %>% # I think the weight is wrong
 
 # plot the means of the uncorrected data 
 RespoMeans %>%
+  filter(Temp.Block<34)%>%
   ggplot(aes(x = Temp.Block, y = rate_mean, color = Species))+ geom_point(size = 3)+
   geom_smooth()+
-  geom_point(data = RespoData, aes(x = Temp.Block, y = umol.gram.hr, color = Species), alpha = 0.1)+
+  geom_point(data = RespoData %>%
+               filter(Temp.Block<28), aes(x = Temp.Block, y = umol.gram.hr, color = Species), alpha = 0.1)+
   geom_errorbar(aes(ymin = lower.ci,
                     ymax = upper.ci),width = 0.2)
 
 
 ## Let's fit a weighted TPC (by SD) to account for variance within a temperature and then use bootstrapping to calculate error
-
-
-
 
 
 
@@ -130,6 +139,7 @@ ggplot() +
   
   #ylim(c(-0.25, 3.5))
 
+# Mex
 # refit model using nlsLM
 fit_nlsLM <- minpack.lm::nlsLM(rate~sharpeschoolhigh_1981(temp = temp, r_tref,e,eh,th, tref = 20),
                                data = RespoMeans2_Mex,
@@ -156,21 +166,110 @@ boot1_preds <- boot1$t %>%
 boot1_conf_preds <- group_by(boot1_preds, temp) %>%
   summarise(conf_lower = quantile(pred, 0.025),
             conf_upper = quantile(pred, 0.975),
+            mean = mean(pred, na.rm = TRUE),
             .groups = 'drop')
+
+# calculate all params
+allparams<-calc_params(fit_nlsLM) %>%
+  pivot_longer(everything(), names_to =  'param', values_to = 'estimate')
+
+
+ci_allparams <- Boot(fit_nlsLM, f = function(x){unlist(calc_params(x))}, labels = names(calc_params(fit_nlsLM)), R = 200, method = 'case') %>%
+  confint(., method = 'bca') %>%
+  as.data.frame() %>%
+  rename(conf_lower = 1, conf_upper = 2) %>%
+  rownames_to_column(., var = 'param') %>%
+  mutate(method = 'case bootstrap')
+
+ci_allparams <- left_join(ci_allparams, allparams) %>%
+  mutate(Species = "Mexicanthina")
+
+# AC
+# refit model using nlsLM
+fit_nlsLM_Ac <- minpack.lm::nlsLM(rate~sharpeschoolhigh_1981(temp = temp, r_tref,e,eh,th, tref = 20),
+                               data = RespoMeans2_Ac,
+                               start = coef(dfit$sharpeschoolhigh[[1]]),
+                               lower = get_lower_lims(RespoMeans2_Ac$temp, RespoMeans2_Ac$rate, model_name = 'sharpeschoolhigh_1981'),
+                               upper = get_upper_lims(RespoMeans2_Ac$temp, RespoMeans2_Ac$rate, model_name = 'sharpeschoolhigh_1981'),
+                               weights = 1/sd)
+
+# perform case bootstrap
+boot1_Ac <- Boot(fit_nlsLM_Ac, method = 'case')
+#> 
+
+# predict over new data
+boot1_preds_Ac <- boot1_Ac$t %>%
+  as.data.frame() %>%
+  drop_na() %>%
+  mutate(iter = 1:n()) %>%
+  group_by_all() %>%
+  do(data.frame(temp = seq(min(RespoMeans2_Ac$temp), max(RespoMeans2_Ac$temp), length.out = 100))) %>%
+  ungroup() %>%
+  mutate(pred = sharpeschoolhigh_1981(temp = temp, r_tref,e,eh,th, tref = 20))
+
+# calculate bootstrapped confidence intervals
+boot1_conf_preds_Ac <- group_by(boot1_preds_Ac, temp) %>%
+  summarise(conf_lower = quantile(pred, 0.025),
+            conf_upper = quantile(pred, 0.975),
+            mean = mean(pred, na.rm = TRUE),
+            .groups = 'drop')
+
+
+# calculate all params
+allparams_Ac<-calc_params(fit_nlsLM_Ac) %>%
+  pivot_longer(everything(), names_to =  'param', values_to = 'estimate')
+
+
+ci_allparams_Ac <- Boot(fit_nlsLM_Ac, f = function(x){unlist(calc_params(x))}, labels = names(calc_params(fit_nlsLM)), R = 200, method = 'case') %>%
+  confint(., method = 'bca') %>%
+  as.data.frame() %>%
+  rename(conf_lower = 1, conf_upper = 2) %>%
+  rownames_to_column(., var = 'param') %>%
+  mutate(method = 'case bootstrap')
+
+ci_allparams_Ac <- left_join(ci_allparams_Ac, allparams_Ac) %>%
+  mutate(Species = "Acanthanucella")
+
+allparams_both<-bind_rows(ci_allparams, ci_allparams_Ac)
+
+Topt<-allparams_both %>%
+  filter(param == "topt")
+
 ### plot bootsstrapped predictions
 ggplot() +
-  geom_line(aes(temp, .fitted), d_preds, col = 'black') +
-  geom_line(aes(temp, pred, group = iter), boot1_preds, col = 'black', alpha = 0.007) +
-  geom_linerange(aes(x = temp, ymin = rate - sd, ymax = rate + sd), RespoMeans2_Mex) +
-  geom_point(aes(temp, rate), RespoMeans2_Mex, size = 2, shape = 21, fill = 'green4') +
+  #geom_line(aes(temp, .fitted), d_preds, col = 'black') +
+  geom_line(aes(temp, pred, group = iter), boot1_preds, alpha = 0.007, color = "purple") +
+  geom_line(aes(temp, pred, group = iter), boot1_preds_Ac, alpha = 0.007, color = "green") +
+  geom_line(data = boot1_conf_preds, aes(x = temp, y = mean), color = "purple", lwd = 3)+
+  geom_line(data = boot1_conf_preds_Ac, aes(x = temp, y = mean), color = "green", lwd = 3)+
+  geom_vline(aes(xintercept = Topt$estimate[1]), color = "purple", lty = 2, lwd = 2)+
+  geom_vline(aes(xintercept = Topt$estimate[2]), color = "green", lty = 2, lwd = 2)+
+  geom_text(aes(x = 20.5, y = 0.02, label = "Mexicanthina"), size = 10)+
+  geom_text(aes(x = 30, y = 0.065, label = "Acanthanucella"), size = 10)+
+  #geom_linerange(aes(x = temp, ymin = rate - sd, ymax = rate + sd), RespoMeans2_Mex) +
+  #geom_point(aes(temp, rate), RespoMeans2_Mex, size = 2, shape = 21, fill = 'green4') +
   theme_bw(base_size = 10) +
   theme(legend.position = 'none',
         strip.text = element_text(hjust = 0),
-        strip.background = element_blank()) +
+        strip.background = element_blank(),
+        axis.text.x = element_text(size = 18),
+        axis.text.y = element_text(size = 22),
+        axis.title = element_text(size = 22)) +
   labs(x ='Temperature (ºC)',
-       y = 'Metabolic rate',
-       title = 'Respiration rates across temperatures') +
-  geom_hline(aes(yintercept = 0), linetype = 2) 
+       y = 'Respiration rate (mmol g-1 hr-1)') 
+
+ggsave(here("output", "TPCFig.png"))
+
+ # geom_hline(aes(yintercept = 0), linetype = 2) 
+
+
+### plot the params
+ggplot(allparams_both, aes(Species, estimate)) +
+  geom_point(size = 4) +
+  geom_linerange(aes(ymin = conf_lower, ymax = conf_upper)) +
+  theme_bw() +
+  facet_wrap(~param, scales = 'free') +
+  scale_x_discrete('') 
 
 ## Calculate parameters
 param <- broom::tidy(fit_nlsLM) %>%
